@@ -1,0 +1,36 @@
+# File system junk files
+Desktop.ini
+Thumbs.db
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.apdisk
+.fseventsd
+.Trash-*
+
+# Editor files
+*.sublime-*
+.netrwhist
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+.c9
+.idea/
+~$*.xlsx
+.phpintel/
+
+# Files that might appear on external disks
+.Spotlight-V100
+.Trashes
+
+# Application specific files
+venv/
+
+_packs/*
+!_packs/.gitkeep
+_unpacked/*
+!_unpacked/.gitkeep
+
+prepare-models.py
+blender_convert.py
+pipeline.md
