@@ -5,9 +5,9 @@ Pack/unpack Diabotical .dbp files
 ## Usage
 
 ```
-python3 dbp-pack.py list <file.dbp>
-python3 dbp-pack.py unpack <file.dbp>
-python3 dbp-pack.py pack <src-folder> <out.dbp>
+python3 dbp-pack.py list <src.dbp>
+python3 dbp-pack.py unpack <src.dbp> <dst-directory>
+python3 dbp-pack.py pack <src-directory> <dst.dbp>
 ```
 
 ## File format
