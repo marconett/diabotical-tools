@@ -1,4 +1,4 @@
-# rbe-parser.py
+# rbe-parser
 
 Parse Diabotical .rbe map files
 

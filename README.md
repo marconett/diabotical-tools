@@ -1,10 +1,11 @@
 # Diabotical tools
 
-A collection of python CLI tools I created or extended that do stuff with Diabotical game files:
+A collection of CLI tools I created or extended that do stuff with Diabotical game files:
 
 * [dbp-packer](dbp-packer.md): Pack/unpack Diabotical `.dbp` files
 * [assets-parser](assets-parser.md): Parse Diabotical `.assets` files
 * [rbe-parser](rbe-parser.md): Parse Diabotical `.rbe` map files and create minimap images
+* [ui-exporter](ui-exporter.md): Exports the UI (HTML / JS / CSS) from a `diabotical.exe`
 
 While I tried to make this Windows-compatible, I haven't tested it. Try using WSL if things don't work.
 

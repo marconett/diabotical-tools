@@ -1,4 +1,4 @@
-# dbp-packer.py
+# dbp-packer
 
 Pack/unpack Diabotical .dbp files
 

@@ -1,4 +1,4 @@
-# assets-parser.py
+# assets-parser
 
 Parse Diabotical `.assets` files
 

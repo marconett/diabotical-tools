@@ -34,3 +34,5 @@ _unpacked/*
 prepare-models.py
 blender_convert.py
 pipeline.md
+*.exe
+bundled-*
