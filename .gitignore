@@ -30,9 +30,11 @@ _packs/*
 !_packs/.gitkeep
 _unpacked/*
 !_unpacked/.gitkeep
+_demos/
 
 prepare-models.py
 blender_convert.py
 pipeline.md
 *.exe
+*.rbr
 bundled-*

@@ -5,6 +5,7 @@ A collection of CLI tools I created or extended that do stuff with Diabotical ga
 * [dbp-packer](dbp-packer.md): Pack/unpack Diabotical `.dbp` files
 * [assets-parser](assets-parser.md): Parse Diabotical `.assets` files
 * [rbe-parser](rbe-parser.md): Parse Diabotical `.rbe` map files and create minimap images
+* [demo-parser](demo-parser.md): Parses meta information of demo files
 * [ui-exporter](ui-exporter.md): Exports the UI (HTML / JS / CSS) from a `diabotical.exe`
 
 While I tried to make this Windows-compatible, I haven't tested it. Try using WSL if things don't work.
