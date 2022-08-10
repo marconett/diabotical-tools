@@ -26,6 +26,7 @@ import colorsys
 import gzip
 import json
 import argparse
+from io import BytesIO
 from pathlib import Path, PureWindowsPath
 
 class MapObject:
@@ -46,6 +47,7 @@ class MapObject:
     ##############
     def AddBlock(self, x, y, z, block_type=1, mats=None, mat_offs=None, orient=2):
         self.block_count += 1
+
         if mats == None:
             mats = {
                 'front': 1,
@@ -55,6 +57,7 @@ class MapObject:
                 'top': 1,
                 'bottom': 1
             }
+
         if mat_offs == None:
             mat_offs = {
                 'front': {'x': 0, 'y': 0},
@@ -64,6 +67,7 @@ class MapObject:
                 'top': {'x': 0, 'y': 0},
                 'bottom': {'x': 0, 'y': 0}
             }
+
         newBlock = {
             'x': x,
             'y': y,
@@ -287,103 +291,126 @@ class MapObject:
             # TODO: There's another unknown prop structure inside `self.u5` that was added to the map format some point
             self.u5 = f.read()
 
+    def EmptyMap(self):
+        self.material_count = 0
+        self.materials = []
+        self.block_count = 0
+        self.blocks = []
+        self.u3_count = 0
+        self.u3_raw = []
+        self.entity_count = 0
+        self.entities = []
+        self.audio_count = 0
+        self.audio_raw = []
+        self.minimap_layer_count = 0
+        self.minimap_layers = []
+        self.audio_prop_count = 0
+        self.audio_props = []
+        self.u5 = bytearray()
+
     ##########################
     # PACK & SAVE A MAP FILE #
     ##########################
     def Save(self, f):
+
+        gzipped = BytesIO()
+        with gzip.GzipFile(mode='wb', fileobj=gzipped) as gf:
+            gf.write(encodeInt(self.material_count, 1))
+            for m in self.materials:
+                gf.write(encodeInt(m['name_len'], 4))
+                gf.write(encodeString(m['name']))
+
+            gf.write(encodeInt(self.u2, 4))
+
+            gf.write(encodeInt(self.block_count, 4))
+            for b in self.blocks:
+                gf.write(encodeInt(b['x'], 4))
+                gf.write(encodeInt(b['y'], 4))
+                gf.write(encodeInt(b['z'], 4))
+                gf.write(encodeInt(b['type'], 1))
+                gf.write(encodeInt(b['u1'], 12))
+                gf.write(encodeInt(b['mats']['front'], 1))
+                gf.write(encodeInt(b['mats']['left'], 1))
+                gf.write(encodeInt(b['mats']['back'], 1))
+                gf.write(encodeInt(b['mats']['right'], 1))
+                gf.write(encodeInt(b['mats']['top'], 1))
+                gf.write(encodeInt(b['mats']['bottom'], 1))
+                gf.write(encodeInt(b['u2'], 1))
+                gf.write(encodeInt(b['mat_offs']['front']['x'], 1))
+                gf.write(encodeInt(b['mat_offs']['front']['y'], 1))
+                gf.write(encodeInt(b['mat_offs']['left']['x'], 1))
+                gf.write(encodeInt(b['mat_offs']['left']['y'], 1))
+                gf.write(encodeInt(b['mat_offs']['back']['x'], 1))
+                gf.write(encodeInt(b['mat_offs']['back']['y'], 1))
+                gf.write(encodeInt(b['mat_offs']['right']['x'], 1))
+                gf.write(encodeInt(b['mat_offs']['right']['y'], 1))
+                gf.write(encodeInt(b['mat_offs']['top']['x'], 1))
+                gf.write(encodeInt(b['mat_offs']['top']['y'], 1))
+                gf.write(encodeInt(b['mat_offs']['bottom']['x'], 1))
+                gf.write(encodeInt(b['mat_offs']['bottom']['y'], 1))
+                gf.write(encodeInt(b['orient'], 1))
+                gf.write(encodeInt(b['u3'], 8))
+
+            gf.write(encodeInt(self.u3_count, 4))
+            for u3 in self.u3_raw:
+                gf.write(u3)
+
+            gf.write(encodeInt(self.entity_count, 4))
+            for e in self.entities:
+                gf.write(encodeInt(e['name_len'], 4))
+                gf.write(encodeString(e['name']))
+                gf.write(encodeFloat(e['x']))
+                gf.write(encodeFloat(e['y']))
+                gf.write(encodeFloat(e['z']))
+                gf.write(encodeFloat(degToRad(e['xrot'])))
+                gf.write(encodeFloat(degToRad(e['yrot'])))
+                gf.write(encodeFloat(degToRad(e['zrot'])))
+                gf.write(encodeFloat(e['xscale']))
+                gf.write(encodeFloat(e['yscale']))
+                gf.write(encodeFloat(e['zscale']))
+                gf.write(encodeInt(e['property_count'], 4))
+                for p in e['properties']:
+                    gf.write(encodeInt(p['name_len'], 4))
+                    gf.write(encodeString(p['name']))
+                    gf.write(encodeInt(p['val_len'], 4))
+                    gf.write(encodeString(p['val']))
+
+            gf.write(encodeInt(self.audio_count, 4))
+            for a in self.audio_raw:
+                gf.write(a['audio_raw'])
+                gf.write(encodeInt(a['child_count'], 4))
+                for c in a['children']:
+                    gf.write(c)
+
+            gf.write(encodeInt(self.u4, 4))
+
+            gf.write(encodeInt(self.minimap_layer_count, 4))
+            for ly in self.minimap_layers:
+                gf.write(encodeInt(ly['height'], 4))
+                gf.write(encodeInt(ly['point_count'], 4))
+                for p in ly['points']:
+                    gf.write(encodeInt(p['x'], 4))
+                    gf.write(encodeInt(p['y'], 4))
+
+            gf.write(encodeInt(self.audio_prop_count, 4))
+            for a in self.audio_props:
+                gf.write(a['u1'])
+                gf.write(encodeInt(a['name_len'], 4))
+                gf.write(encodeString(a['name']))
+                gf.write(a['u2'])
+                gf.write(encodeInt(a['u3_count'], 4))
+                for u3 in a['u3_raw']:
+                    gf.write(u3)
+
+            gf.write(self.u5)
+
         with open(f, 'wb') as f:
             f.write(encodeString(self.rebm))
             f.write(encodeInt(self.ver, 4))
-            f.write(encodeInt(self.u1, 16))
+            f.write(encodeInt(self.u1, 4))
+            f.write(encodeInt(self.padding, 16))
 
-            f.write(encodeInt(self.material_count, 1))
-            for m in self.materials:
-                f.write(encodeInt(m['name_len'], 4))
-                f.write(encodeString(m['name']))
-
-            f.write(encodeInt(self.u2, 4))
-
-            f.write(encodeInt(self.block_count, 4))
-            for b in self.blocks:
-                f.write(encodeInt(b['x'], 4))
-                f.write(encodeInt(b['y'], 4))
-                f.write(encodeInt(b['z'], 4))
-                f.write(encodeInt(b['type'], 1))
-                f.write(encodeInt(b['u1'], 12))
-                f.write(encodeInt(b['mats']['front'], 1))
-                f.write(encodeInt(b['mats']['left'], 1))
-                f.write(encodeInt(b['mats']['back'], 1))
-                f.write(encodeInt(b['mats']['right'], 1))
-                f.write(encodeInt(b['mats']['top'], 1))
-                f.write(encodeInt(b['mats']['bottom'], 1))
-                f.write(encodeInt(b['u2'], 1))
-                f.write(encodeInt(b['mat_offs']['front']['x'], 1))
-                f.write(encodeInt(b['mat_offs']['front']['y'], 1))
-                f.write(encodeInt(b['mat_offs']['left']['x'], 1))
-                f.write(encodeInt(b['mat_offs']['left']['y'], 1))
-                f.write(encodeInt(b['mat_offs']['back']['x'], 1))
-                f.write(encodeInt(b['mat_offs']['back']['y'], 1))
-                f.write(encodeInt(b['mat_offs']['right']['x'], 1))
-                f.write(encodeInt(b['mat_offs']['right']['y'], 1))
-                f.write(encodeInt(b['mat_offs']['top']['x'], 1))
-                f.write(encodeInt(b['mat_offs']['top']['y'], 1))
-                f.write(encodeInt(b['mat_offs']['bottom']['x'], 1))
-                f.write(encodeInt(b['mat_offs']['bottom']['y'], 1))
-                f.write(encodeInt(b['orient'], 1))
-                f.write(encodeInt(b['u3'], 1))
-
-            f.write(encodeInt(self.u3_count, 4))
-            for u3 in self.u3_raw:
-                f.write(u3)
-
-            f.write(encodeInt(self.entity_count, 4))
-            for e in self.entities:
-                f.write(encodeInt(e['name_len'], 4))
-                f.write(encodeString(e['name']))
-                f.write(encodeFloat(e['x']))
-                f.write(encodeFloat(e['y']))
-                f.write(encodeFloat(e['z']))
-                f.write(encodeFloat(degToRad(e['xrot'])))
-                f.write(encodeFloat(degToRad(e['yrot'])))
-                f.write(encodeFloat(degToRad(e['zrot'])))
-                f.write(encodeFloat(e['xscale']))
-                f.write(encodeFloat(e['yscale']))
-                f.write(encodeFloat(e['zscale']))
-                f.write(encodeInt(e['property_count'], 4))
-                for p in e['properties']:
-                    f.write(encodeInt(p['name_len'], 4))
-                    f.write(encodeString(p['name']))
-                    f.write(encodeInt(p['val_len'], 4))
-                    f.write(encodeString(p['val']))
-
-            f.write(encodeInt(self.audio_count, 4))
-            for a in self.audio_raw:
-                f.write(a['audio_raw'])
-                f.write(encodeInt(a['child_count'], 4))
-                for c in a['children']:
-                    f.write(c)
-
-            f.write(encodeInt(self.u4, 4))
-
-            f.write(encodeInt(self.minimap_layer_count, 4))
-            for ly in self.minimap_layers:
-                f.write(encodeInt(ly['height'], 4))
-                f.write(encodeInt(ly['point_count'], 4))
-                for p in ly['points']:
-                    f.write(encodeInt(p['x'], 4))
-                    f.write(encodeInt(p['y'], 4))
-
-            f.write(encodeInt(self.audio_prop_count, 4))
-            for a in self.audio_props:
-                f.write(a['u1'])
-                f.write(encodeInt(a['name_len'], 4))
-                f.write(encodeString(a['name']))
-                f.write(a['u2'])
-                f.write(encodeInt(a['u3_count'], 4))
-                for u3 in a['u3_raw']:
-                    f.write(u3)
-
-            f.write(self.u5)
+            f.write(gzipped.getbuffer())
 
     def DrawMinimap(self, name):
         from PIL import Image, ImageDraw, ImageFilter
@@ -448,6 +475,7 @@ if __name__ == '__main__':
     parser.add_argument('source', type=argparse.FileType('r'), help="the .rbe map file")
     parser.add_argument('--json', action=argparse.BooleanOptionalAction, help="export to JSON in current working directory (CAUTION: the file will be huge)")
     parser.add_argument('--minimap', action=argparse.BooleanOptionalAction, help="create a minimap png in current working directory ")
+    parser.add_argument('--test', action=argparse.BooleanOptionalAction, help="Use any official map as a \"template\", delete it's content and write new map")
 
     if len(sys.argv)==1:
         parser.print_help(sys.stderr)
@@ -471,7 +499,10 @@ if __name__ == '__main__':
         print("\ncreating minimap ...")
         m.DrawMinimap(fileOut)
 
-    print("DONE")
+    if args.test:
+        print("\ncreating test map ...")
+        m.EmptyMap()
+        m.AddBlock(10, 20, 30)
+        m.Save('wo_ws_test.rbe')
 
-    # m.AddBlock(10, 20, 30)
-    # m.Save('output_map_file.rbe')
+    print("DONE")

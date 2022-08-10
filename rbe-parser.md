@@ -3,14 +3,14 @@
 Parse Diabotical .rbe map files
 
 * This is an adaptation of https://github.com/Press-OK/ParseRBE with a few additions.
-* Writing map files is possible, but the implementation is not maintained and it's likely broken.
+* Optionally – and based on a given template map – creates a new map containing just one dynamically generated block and writes it to a `*.rbe` file
 * Optionally outputs the parsed map data to JSON, which is just for demonstration and not really super useful. Caution: the JSON file will be huge.
 * Optionally creates a minimap image. This requires an external dependency: `pip3 install -r requirements.txt`
 
 ## Usage
 
 ```
-python3 rbe-parser.py [--json] [--minimap] <wo_wellspring.rbe>
+python3 rbe-parser.py [--json] [--minimap] [--test] <wo_wellspring.rbe>
 ```
 
 ## Additions compared to ParseRBE

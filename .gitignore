@@ -37,4 +37,5 @@ blender_convert.py
 pipeline.md
 *.exe
 *.rbr
+*.rbe
 bundled-*
