@@ -123,9 +123,16 @@ class MapObject:
             self.rebm               = f.read(4).decode("utf-8")
             self.ver                = decodeInt(f.read(4))
             self.u1                 = decodeInt(f.read(4))
-            self.padding            = decodeInt(f.read(16))
 
-            f = gzip.GzipFile(fileobj=f)
+            print(f"Map Format Version: {self.ver}")
+
+            self.padding1         = decodeInt(f.read(4))
+            self.author_length    = decodeInt(f.read(4))
+            self.author_name      = f.read(self.author_length).decode("utf-8")
+            self.padding2         = decodeInt(f.read(8))
+
+            if self.ver > 21:
+              f = gzip.GzipFile(fileobj=f)
 
             self.material_count     = decodeInt(f.read(1))
             self.materials          = []
@@ -188,8 +195,9 @@ class MapObject:
                         },
                     },
                     'orient':   decodeInt(f.read(1)),
-                    'u3':       decodeInt(f.read(8))
+                    'u3':       decodeInt(f.read(8 if (self.ver > 24) else 1))
                 }
+
                 self.blocks.append(b)
                 self.bounds['minx'] = b['x'] if b['x'] < self.bounds['minx'] or self.bounds['minx'] == 0 else self.bounds['minx']
                 self.bounds['maxx'] = b['x'] if b['x'] > self.bounds['maxx'] or self.bounds['maxx'] == 0 else self.bounds['maxx']
@@ -408,7 +416,10 @@ class MapObject:
             f.write(encodeString(self.rebm))
             f.write(encodeInt(self.ver, 4))
             f.write(encodeInt(self.u1, 4))
-            f.write(encodeInt(self.padding, 16))
+            f.write(encodeInt(self.padding1, 4))
+            f.write(encodeInt(self.author_length, 4))
+            f.write(encodeString(self.author_name))
+            f.write(encodeInt(self.padding4, 8))
 
             f.write(gzipped.getbuffer())
 
@@ -416,29 +427,36 @@ class MapObject:
         from PIL import Image, ImageDraw, ImageFilter
 
         layer_count = len(self.minimap_layers)
-        colors = getColorArray(layer_count)
 
-        factor = 16
-        width = (abs(self.minimap_bounds['minx']) + self.minimap_bounds['maxx'])
-        height = (abs(self.minimap_bounds['miny']) + self.minimap_bounds['maxy'])
+        if layer_count > 0:
+          colors = getColorArray(layer_count)
 
-        img = Image.new( mode = "RGB", size = (width, height) )
-        draw = ImageDraw.Draw(img)
+          factor = 16
+          width = (abs(self.minimap_bounds['minx']) + self.minimap_bounds['maxx'])
+          height = (abs(self.minimap_bounds['miny']) + self.minimap_bounds['maxy'])
+
+          print(width)
+          print(height)
+
+          img = Image.new( mode = "RGB", size = (width, height) )
+          draw = ImageDraw.Draw(img)
 
 
-        for i, layer in enumerate(self.minimap_layers):
-            for point in layer['points']:
-                x = (point['x'] + abs(self.minimap_bounds['minx']))
-                y = (point['y'] + abs(self.minimap_bounds['miny']))
-                draw.rectangle((x, y, x, y), fill=colors[i], outline=colors[i])
+          for i, layer in enumerate(self.minimap_layers):
+              for point in layer['points']:
+                  x = (point['x'] + abs(self.minimap_bounds['minx']))
+                  y = (point['y'] + abs(self.minimap_bounds['miny']))
+                  draw.rectangle((x, y, x, y), fill=colors[i], outline=colors[i])
 
-        img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
-        img = img.resize((width*factor, height*factor), resample=0)
-        img = img.filter(ImageFilter.ModeFilter(size=11))
-        img = img.filter(ImageFilter.EDGE_ENHANCE)
+          img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
+          img = img.resize((width*factor, height*factor), resample=0)
+          img = img.filter(ImageFilter.ModeFilter(size=11))
+          img = img.filter(ImageFilter.EDGE_ENHANCE)
 
-        # img.show()
-        img.save(name + ".png", "PNG")
+          # img.show()
+          img.save(name + ".png", "PNG")
+        else:
+          print("No minimap found in map file")
 
 def encodeInt(data, bytes):
     return data.to_bytes(bytes, "little", signed=True)
