@@ -127,11 +127,12 @@ class MapObject:
             print(f"Map Format Version: {self.ver}")
 
             self.padding1         = decodeInt(f.read(4))
-            self.author_length    = decodeInt(f.read(4))
-            self.author_name      = f.read(self.author_length).decode("utf-8")
-            self.padding2         = decodeInt(f.read(8))
 
             if self.ver > 21:
+              self.author_length    = decodeInt(f.read(4))
+              self.author_name      = f.read(self.author_length).decode("utf-8")
+              self.padding2         = decodeInt(f.read(8))
+
               f = gzip.GzipFile(fileobj=f)
 
             self.material_count     = decodeInt(f.read(1))
@@ -280,21 +281,22 @@ class MapObject:
                     self.minimap_bounds['maxy'] = p['y'] if p['y'] > self.minimap_bounds['maxy'] or self.minimap_bounds['maxy'] == 0 else self.minimap_bounds['maxy']
                 self.minimap_layers.append(ly)
 
-            print(f"audio_prop_count offset: 0x{f.tell():08x}")
-            self.audio_prop_count       = decodeInt(f.read(4))
-            self.audio_props            = []
-            for i in range(self.audio_prop_count):
-                a = {
-                    'u1': f.read(142),
-                    'name_len': decodeInt(f.read(4)),
-                }
-                a['name'] = f.read(a['name_len']).decode("utf-8")
-                a['u2'] = f.read(14)
-                a['u3_count'] = decodeInt(f.read(4))
-                a['u3_raw'] = []
-                for j in range(a['u3_count']):
-                    a['u3_raw'].append(f.read(32))
-                self.audio_props.append(a)
+            if self.ver > 21:
+              print(f"audio_prop_count offset: 0x{f.tell():08x}")
+              self.audio_prop_count       = decodeInt(f.read(4))
+              self.audio_props            = []
+              for i in range(self.audio_prop_count):
+                  a = {
+                      'u1': f.read(142),
+                      'name_len': decodeInt(f.read(4)),
+                  }
+                  a['name'] = f.read(a['name_len']).decode("utf-8")
+                  a['u2'] = f.read(14)
+                  a['u3_count'] = decodeInt(f.read(4))
+                  a['u3_raw'] = []
+                  for j in range(a['u3_count']):
+                      a['u3_raw'].append(f.read(32))
+                  self.audio_props.append(a)
 
             # TODO: There's another unknown prop structure inside `self.u5` that was added to the map format some point
             self.u5 = f.read()
@@ -419,7 +421,7 @@ class MapObject:
             f.write(encodeInt(self.padding1, 4))
             f.write(encodeInt(self.author_length, 4))
             f.write(encodeString(self.author_name))
-            f.write(encodeInt(self.padding4, 8))
+            f.write(encodeInt(self.padding2, 8))
 
             f.write(gzipped.getbuffer())
 
