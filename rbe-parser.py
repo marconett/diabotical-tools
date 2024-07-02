@@ -78,7 +78,8 @@ class MapObject:
             'u2': 0,
             'mat_offs': mat_offs,
             'orient': orient,
-            'u3': 0
+            'u3': 0,
+            'u4': 0
         }
         self.blocks.append(newBlock)
 
@@ -195,9 +196,15 @@ class MapObject:
                             'y': decodeInt(f.read(1))
                         },
                     },
-                    'orient':   decodeInt(f.read(1)),
-                    'u3':       decodeInt(f.read(8 if (self.ver > 24) else 1))
                 }
+
+                if self.ver > 24:
+                  b['u3'] = decodeInt(f.read(6))
+                  b['orient'] = decodeInt(f.read(1))
+                  b['u4'] = decodeInt(f.read(2))
+                else:
+                  b['orient'] = decodeInt(f.read(1))
+                  b['u3'] = decodeInt(f.read(1))
 
                 self.blocks.append(b)
                 self.bounds['minx'] = b['x'] if b['x'] < self.bounds['minx'] or self.bounds['minx'] == 0 else self.bounds['minx']
@@ -358,8 +365,16 @@ class MapObject:
                 gf.write(encodeInt(b['mat_offs']['top']['y'], 1))
                 gf.write(encodeInt(b['mat_offs']['bottom']['x'], 1))
                 gf.write(encodeInt(b['mat_offs']['bottom']['y'], 1))
-                gf.write(encodeInt(b['orient'], 1))
-                gf.write(encodeInt(b['u3'], 8))
+
+                if self.ver > 24:
+                  gf.write(encodeInt(b['u3'], 6))
+                  gf.write(encodeInt(b['orient'], 1))
+                  gf.write(encodeInt(b['u4'], 2))
+                else:
+                  gf.write(encodeInt(b['orient'], 1))
+                  gf.write(encodeInt(b['u3'], 1))
+
+
 
             gf.write(encodeInt(self.u3_count, 4))
             for u3 in self.u3_raw:
@@ -436,9 +451,6 @@ class MapObject:
           factor = 16
           width = (abs(self.minimap_bounds['minx']) + self.minimap_bounds['maxx'])
           height = (abs(self.minimap_bounds['miny']) + self.minimap_bounds['maxy'])
-
-          print(width)
-          print(height)
 
           img = Image.new( mode = "RGB", size = (width, height) )
           draw = ImageDraw.Draw(img)
