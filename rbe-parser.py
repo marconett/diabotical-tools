@@ -214,11 +214,20 @@ class MapObject:
                 self.bounds['minz'] = b['z'] if b['z'] < self.bounds['minz'] or self.bounds['minz'] == 0 else self.bounds['minz']
                 self.bounds['maxz'] = b['z'] if b['z'] > self.bounds['maxz'] or self.bounds['maxz'] == 0 else self.bounds['maxz']
 
-            print(f"u3_count offset: 0x{f.tell():08x}")
-            self.u3_count           = decodeInt(f.read(4))
-            self.u3_raw             = []
-            for i in range(self.u3_count):
-                self.u3_raw.append(f.read(16))
+            # 2D slices (BlockInfo2d): per-cell room id + optional camera hint
+            print(f"slice_count offset: 0x{f.tell():08x}")
+            self.slice_count        = decodeInt(f.read(4))
+            self.slices             = []
+            for i in range(self.slice_count):
+                s = {
+                    'sx':    decodeInt(f.read(4)),
+                    'sy':    decodeInt(f.read(4)),
+                    'sroom': decodeInt(f.read(4)),
+                }
+                if self.ver > 11:
+                    c = decodeInt(f.read(4))
+                    s['camera_hint'] = f.read(c).decode("utf-8")
+                self.slices.append(s)
 
             print(f"entity_count offset: 0x{f.tell():08x}")
             self.entity_count       = decodeInt(f.read(4))
@@ -251,6 +260,7 @@ class MapObject:
                     e['properties'].append(p)
                 self.entities.append(e)
 
+            # audio propagation graph: per-node grid coord + connected coords
             print(f"audio_count offset: 0x{f.tell():08x}")
             self.audio_count        = decodeInt(f.read(4))
             self.audio_raw          = []
@@ -264,9 +274,13 @@ class MapObject:
                     a['children'].append(f.read(12))
                 self.audio_raw.append(a)
 
-            print(f"minimap_layer_count offset: 0x{f.tell():08x}")
-            self.u4 = decodeInt(f.read(4))
+            # navmesh: length-prefixed Detour blob (kept raw; 0 bytes on most maps)
+            print(f"navigation_size offset: 0x{f.tell():08x}")
+            self.navigation_size    = decodeInt(f.read(4))
+            self.navmesh            = f.read(self.navigation_size)
 
+            # discovery / per-height-level cells (what the minimap is drawn from)
+            print(f"minimap_layer_count offset: 0x{f.tell():08x}")
             self.minimap_bounds = { 'minx': 0.0, 'maxx': 0.0, 'miny': 0.0, 'maxy': 0.0 }
             self.minimap_layer_count    = decodeInt(f.read(4))
             self.minimap_layers         = []
@@ -288,50 +302,66 @@ class MapObject:
                     self.minimap_bounds['maxy'] = p['y'] if p['y'] > self.minimap_bounds['maxy'] or self.minimap_bounds['maxy'] == 0 else self.minimap_bounds['maxy']
                 self.minimap_layers.append(ly)
 
-            if self.ver > 21:
-              print(f"audio_prop_count offset: 0x{f.tell():08x}")
-              self.audio_prop_count       = decodeInt(f.read(4))
-              self.audio_props            = []
-              for i in range(self.audio_prop_count):
-                  a = {
-                      'u1': f.read(142),
-                      'name_len': decodeInt(f.read(4)),
-                  }
-                  a['name'] = f.read(a['name_len']).decode("utf-8")
-                  a['u2'] = f.read(14)
-                  a['u3_count'] = decodeInt(f.read(4))
-                  a['u3_raw'] = []
-                  for j in range(a['u3_count']):
-                      a['u3_raw'].append(f.read(32))
-                  self.audio_props.append(a)
+            # level collision hulls (static geometry players/projectiles hit)
+            self.level_hull_count   = 0
+            self.level_hulls        = []
+            if self.ver > 17:
+                print(f"level_hull_count offset: 0x{f.tell():08x}")
+                self.level_hull_count   = decodeInt(f.read(4))
+                for i in range(self.level_hull_count):
+                    self.level_hulls.append(readPlaneSet(f, self.ver))
 
-            # TODO: There's another unknown prop structure inside `self.u5` that was added to the map format some point
-            self.u5 = f.read()
+            # moving-entity collision hulls (grouped per entity: movers, doors, liquids)
+            self.moving_hull_group_count = 0
+            self.moving_hull_groups      = []
+            if self.ver > 20:
+                print(f"moving_hull_group_count offset: 0x{f.tell():08x}")
+                self.moving_hull_group_count = decodeInt(f.read(4))
+                for i in range(self.moving_hull_group_count):
+                    c = decodeInt(f.read(4))
+                    g = {
+                        'name':  f.read(c).decode("utf-8"),
+                        'hulls': []
+                    }
+                    planeset_count = decodeInt(f.read(4))
+                    for j in range(planeset_count):
+                        g['hulls'].append(readPlaneSet(f, self.ver))
+                    self.moving_hull_groups.append(g)
+
+            # Should be empty on all known versions; preserved so unknown trailing
+            # data from a future map format still round-trips through Save().
+            self.trailing = f.read()
+            if len(self.trailing):
+                print(f"warning: {len(self.trailing)} unparsed trailing bytes preserved")
 
     def EmptyMap(self):
         self.material_count = 0
         self.materials = []
         self.block_count = 0
         self.blocks = []
-        self.u3_count = 0
-        self.u3_raw = []
+        self.slice_count = 0
+        self.slices = []
         self.entity_count = 0
         self.entities = []
         self.audio_count = 0
         self.audio_raw = []
+        self.navigation_size = 0
+        self.navmesh = bytearray()
         self.minimap_layer_count = 0
         self.minimap_layers = []
-        self.audio_prop_count = 0
-        self.audio_props = []
-        self.u5 = bytearray()
+        self.level_hull_count = 0
+        self.level_hulls = []
+        self.moving_hull_group_count = 0
+        self.moving_hull_groups = []
+        self.trailing = bytearray()
 
     ##########################
     # PACK & SAVE A MAP FILE #
     ##########################
     def Save(self, f):
 
-        gzipped = BytesIO()
-        with gzip.GzipFile(mode='wb', fileobj=gzipped) as gf:
+        gf = BytesIO()  # the decompressed body
+        if True:
             gf.write(encodeInt(self.material_count, 1))
             for m in self.materials:
                 gf.write(encodeInt(m['name_len'], 4))
@@ -376,9 +406,15 @@ class MapObject:
 
 
 
-            gf.write(encodeInt(self.u3_count, 4))
-            for u3 in self.u3_raw:
-                gf.write(u3)
+            gf.write(encodeInt(self.slice_count, 4))
+            for s in self.slices:
+                gf.write(encodeInt(s['sx'], 4))
+                gf.write(encodeInt(s['sy'], 4))
+                gf.write(encodeInt(s['sroom'], 4))
+                if self.ver > 11:
+                    hint = encodeString(s.get('camera_hint', ''))
+                    gf.write(encodeInt(len(hint), 4))
+                    gf.write(hint)
 
             gf.write(encodeInt(self.entity_count, 4))
             for e in self.entities:
@@ -407,7 +443,8 @@ class MapObject:
                 for c in a['children']:
                     gf.write(c)
 
-            gf.write(encodeInt(self.u4, 4))
+            gf.write(encodeInt(self.navigation_size, 4))
+            gf.write(self.navmesh)
 
             gf.write(encodeInt(self.minimap_layer_count, 4))
             for ly in self.minimap_layers:
@@ -417,28 +454,44 @@ class MapObject:
                     gf.write(encodeInt(p['x'], 4))
                     gf.write(encodeInt(p['y'], 4))
 
-            gf.write(encodeInt(self.audio_prop_count, 4))
-            for a in self.audio_props:
-                gf.write(a['u1'])
-                gf.write(encodeInt(a['name_len'], 4))
-                gf.write(encodeString(a['name']))
-                gf.write(a['u2'])
-                gf.write(encodeInt(a['u3_count'], 4))
-                for u3 in a['u3_raw']:
-                    gf.write(u3)
+            if self.ver > 17:
+                gf.write(encodeInt(self.level_hull_count, 4))
+                for ps in self.level_hulls:
+                    writePlaneSet(gf, ps, self.ver)
 
-            gf.write(self.u5)
+            if self.ver > 20:
+                gf.write(encodeInt(self.moving_hull_group_count, 4))
+                for g in self.moving_hull_groups:
+                    name = encodeString(g['name'])
+                    gf.write(encodeInt(len(name), 4))
+                    gf.write(name)
+                    gf.write(encodeInt(len(g['hulls']), 4))
+                    for ps in g['hulls']:
+                        writePlaneSet(gf, ps, self.ver)
 
-        with open(f, 'wb') as f:
-            f.write(encodeString(self.rebm))
-            f.write(encodeInt(self.ver, 4))
-            f.write(encodeInt(self.u1, 4))
-            f.write(encodeInt(self.padding1, 4))
-            f.write(encodeInt(self.author_length, 4))
-            f.write(encodeString(self.author_name))
-            f.write(encodeInt(self.padding2, 8))
+            gf.write(self.trailing)
 
-            f.write(gzipped.getbuffer())
+        body = gf.getbuffer()
+
+        with open(f, 'wb') as out:
+            out.write(encodeString(self.rebm))
+            out.write(encodeInt(self.ver, 4))
+            out.write(encodeInt(self.u1, 4))
+            out.write(encodeInt(self.padding1, 4))
+
+            if self.ver > 21:
+                # author block + name2 + gzip marker, then the gzip-compressed body
+                author = encodeString(self.author_name)
+                out.write(encodeInt(len(author), 4))
+                out.write(author)
+                out.write(encodeInt(self.padding2, 8))
+                gzipped = BytesIO()
+                with gzip.GzipFile(mode='wb', fileobj=gzipped) as gz:
+                    gz.write(body)
+                out.write(gzipped.getbuffer())
+            else:
+                # version <= 21 stores the body uncompressed with no author block
+                out.write(body)
 
     def DrawMinimap(self, name):
         from PIL import Image, ImageDraw, ImageFilter
@@ -480,12 +533,77 @@ def encodeString(data):
     return data.encode()
 def decodeInt(data):
     return int.from_bytes(data, "little", signed=True)
+def decodeUInt(data):
+    return int.from_bytes(data, "little", signed=False)
 def decodeFloat(data):
     return struct.unpack('<f', data)[0]
+def decodeDouble(data):
+    return struct.unpack('<d', data)[0]
+def encodeUInt(data, bytes):
+    return data.to_bytes(bytes, "little", signed=False)
+def encodeDouble(data):
+    return struct.pack('<d', data)
 def degToRad(degrees):
     return degrees * math.pi / 180
 def radToDeg(radians):
     return radians * 180 / math.pi
+
+# A convex collision hull: levels::PlaneSet. Used by both the level-collision
+# section and the per-moving-entity collision section. On disk it is a fixed
+# 142-byte (138 for version < 23) double-precision header, then the owning
+# entity name, 14 bytes of slide/stairs fields, then plane_count x 32-byte
+# Plane records. A Plane is a half-space stored distance-first, then unit normal.
+def readPlaneSet(f, ver):
+    ps = {
+        'id':            decodeUInt(f.read(4)),
+        'max_radius':    decodeDouble(f.read(8)),
+        'origin':        [decodeDouble(f.read(8)) for _ in range(3)],
+        'origin_orig':   [decodeDouble(f.read(8)) for _ in range(3)],
+        'aabb_min':      [decodeDouble(f.read(8)) for _ in range(3)],
+        'block_pass':    decodeInt(f.read(1)),
+        'block_fire':    decodeInt(f.read(1)),
+        'aabb_extra':    [decodeDouble(f.read(8)) for _ in range(6)],  # aabb_max + rtree extents
+        'clip':          decodeInt(f.read(4)),
+        'collision_mask': decodeUInt(f.read(4)) if ver > 22 else 0,    # added in v23
+    }
+    c = decodeInt(f.read(4))
+    ps['name']       = f.read(c).decode("utf-8")  # owning entity name
+    ps['slide_type'] = decodeInt(f.read(4))
+    ps['is_stairs']  = decodeInt(f.read(1))
+    ps['stairs_yaw'] = decodeDouble(f.read(8))
+    ps['has_target'] = decodeInt(f.read(1))
+    plane_count = decodeInt(f.read(4))
+    ps['planes'] = []
+    for _ in range(plane_count):
+        ps['planes'].append({
+            'distance': decodeDouble(f.read(8)),
+            'normal':   [decodeDouble(f.read(8)) for _ in range(3)],
+        })
+    return ps
+
+def writePlaneSet(gf, ps, ver):
+    gf.write(encodeUInt(ps['id'], 4))
+    gf.write(encodeDouble(ps['max_radius']))
+    for v in ps['origin']:      gf.write(encodeDouble(v))
+    for v in ps['origin_orig']: gf.write(encodeDouble(v))
+    for v in ps['aabb_min']:    gf.write(encodeDouble(v))
+    gf.write(encodeInt(ps['block_pass'], 1))
+    gf.write(encodeInt(ps['block_fire'], 1))
+    for v in ps['aabb_extra']:  gf.write(encodeDouble(v))
+    gf.write(encodeInt(ps['clip'], 4))
+    if ver > 22:
+        gf.write(encodeUInt(ps['collision_mask'], 4))
+    name = encodeString(ps['name'])
+    gf.write(encodeInt(len(name), 4))
+    gf.write(name)
+    gf.write(encodeInt(ps['slide_type'], 4))
+    gf.write(encodeInt(ps['is_stairs'], 1))
+    gf.write(encodeDouble(ps['stairs_yaw']))
+    gf.write(encodeInt(ps['has_target'], 1))
+    gf.write(encodeInt(len(ps['planes']), 4))
+    for pl in ps['planes']:
+        gf.write(encodeDouble(pl['distance']))
+        for v in pl['normal']:  gf.write(encodeDouble(v))
 
 def getColorArray(size):
     HSV_tuples = [(x * 1.0 / size, 0.5, 0.5) for x in range(size)]
